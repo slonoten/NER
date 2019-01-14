@@ -30,13 +30,19 @@ class ModelEval(Callback):
         print(f'Precision: {f1[0]}, Recall: {f1[1]}, F1: {f1[2]}')
 
 
-data_dir = '/home/max/dev/samples/Named-Entity-Recognition-BidirectionalLSTM-CNN-CoNLL/data'
+conll_2003_data_dir = '/home/max/dev/samples/Named-Entity-Recognition-BidirectionalLSTM-CNN-CoNLL/data'
 
-column_idx = 3  # 2 for pos, 3 for ner
+conll_2003_indices = (0, 3)
+conll_2003_ignore = ('-DOCSTART-',)
 
-train_data, train_labels = load_conll(os.path.join(data_dir, 'train.txt'), column_idx)
-validate_data, validate_labels = load_conll(os.path.join(data_dir, 'dev.txt'), column_idx)
-test_data, test_labels = load_conll(os.path.join(data_dir, 'test.txt'), column_idx)
+char_cnn_max_token_len = 30
+
+train_data, train_labels = load_conll(os.path.join(conll_2003_data_dir, 'train.txt'),
+                                      conll_2003_indices, conll_2003_ignore)
+validate_data, validate_labels = load_conll(os.path.join(conll_2003_data_dir, 'dev.txt'),
+                                            conll_2003_indices, conll_2003_ignore)
+test_data, test_labels = load_conll(os.path.join(conll_2003_data_dir, 'test.txt'),
+                                    conll_2003_indices, conll_2003_ignore)
 
 # label_classes = ['I-PER', 'B-MISC', 'I-MISC', 'I-LOC', 'B-ORG', 'I-ORG', 'B-LOC', 'O', 'B-PER']
 label_classes = sorted({l for sent_labels in train_labels + validate_labels + test_labels for l in sent_labels})
@@ -53,22 +59,24 @@ vocab, embed_matrix = load_embeddings('/home/max/ipython/glove/glove.6B.300d.txt
 
 embed_dim = embed_matrix.shape[1]
 
-model = build_model_predict_next(len(label_classes), embed_matrix, 32, len(characters))
+model = build_model_char_cnn_lstm(len(label_classes), embed_matrix, 30, len(characters))
 
-train_generator = DataGenerator(train_data, vocab, char_to_idx, train_labels, label_to_idx, 32, predict_next=True)
+train_generator = DataGenerator(train_data, vocab, char_to_idx, train_labels,
+                                label_to_idx, 32, max_token_len=char_cnn_max_token_len)
 
-evaluator = ModelEval(DataGenerator(validate_data, vocab, char_to_idx, predict_next=True),
+evaluator = ModelEval(DataGenerator(validate_data, vocab, char_to_idx, max_token_len=char_cnn_max_token_len),
                       validate_labels,
-                      idx_to_label,
-                      predict_next=True)
+                      idx_to_label)
 
-model_saver = ModelCheckpoint(filepath='./checkpoints/model_v6_{epoch:02d}.hdf5', verbose=1, save_best_only=False)
+model_saver = ModelCheckpoint(filepath='./checkpoints/crf_model_x{epoch:02d}.hdf5', verbose=1, save_best_only=False)
 
-model.fit_generator(train_generator, epochs=30, callbacks=[evaluator, model_saver])
+model.fit_generator(train_generator, epochs=50, callbacks=[evaluator, model_saver])
 
 #  model.load_weights('./checkpoints/model_v3_29.hdf5')
 
-prediction = predict(model, DataGenerator(test_data, vocab, char_to_idx, predict_next=True), idx_to_label)
+prediction = predict(model,
+                     DataGenerator(test_data, vocab, char_to_idx, max_token_len=char_cnn_max_token_len),
+                     idx_to_label)
 
 print(compute_f1(prediction, test_labels))
 

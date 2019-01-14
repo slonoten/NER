@@ -12,14 +12,11 @@ from keras.preprocessing.sequence import pad_sequences
 
 from embeddings import sentence_to_indices
 from word_casing import get_casing, CASING_PADDING
-
-
-def pad_sequence(sequence: List[Any], max_len: int, value: Any):
-    return ([value] * max(0, max_len - len(sequence)) + sequence)[:max_len]
+from padding import pad_sequence_left, pad_sequence_center
 
 
 def word_to_char_indices(char_to_index: Dict[str, int], word: str, max_len: int):
-    return pad_sequence([c if c else char_to_index['*'] for c in (char_to_index.get(ch) for ch in word)], max_len, 0)
+    return pad_sequence_center([char_to_index.get(ch) for ch in word], max_len, 0)
 
 
 def to_categorical(indices: Any, num_classes: int):
@@ -41,7 +38,8 @@ class DataGenerator(Sequence):
                  labels: List[List[str]] = None,
                  label_to_idx: Dict[str, int] = None,
                  batch_size: int = -1,
-                 predict_next: bool = False,):
+                 predict_next: bool = False,
+                 max_token_len: int = 32):
 
         self.predict = not labels
         self.predict_next = predict_next
@@ -62,7 +60,9 @@ class DataGenerator(Sequence):
             self.label_pad_value = label_to_idx['O']
         self.word_indices = [sentence_to_indices(vocab, sent) for sent in sentences]
         self.word_casing = [[get_casing(w) for w in sent] for sent in sentences]
-        self.word_characters = [[word_to_char_indices(char_to_idx, w, 32) for w in sent] for sent in sentences]
+        self.word_characters = [[word_to_char_indices(char_to_idx, w, max_token_len)
+                                 for w in sent] for sent in sentences]
+        self.max_token_len = max_token_len
 
     def __getitem__(self, index: int):
         start, end = self.ranges[index]
@@ -70,23 +70,14 @@ class DataGenerator(Sequence):
         pad_to_len = max(l for _, l in indices_and_len_tuples)
         indices = [i for i, _ in indices_and_len_tuples]
         words_input = pad_sequences([self.word_indices[i] for i in indices], pad_to_len)
-        casing_input = np.array([pad_sequence(self.word_casing[i], pad_to_len, CASING_PADDING) for i in indices])
-        characters_input = np.array([pad_sequence(self.word_characters[i], pad_to_len, [0] * 32) for i in indices])
+        casing_input = np.array([pad_sequence_left(self.word_casing[i], pad_to_len, CASING_PADDING) for i in indices])
+        characters_input = np.array([pad_sequence_center(self.word_characters[i], pad_to_len,
+                                                         [0] * self.max_token_len) for i in indices])
         if self.predict:
             return [words_input, casing_input, characters_input]
-        labels = [self.labels[i] for i in indices]
-        labels_cat = to_categorical(pad_sequences(labels, pad_to_len, value=self.label_pad_value),
-                                    self.num_classes)
-        if self.predict_next:
-            labels_next = [sent_labels[1:] + [self.label_pad_value] for sent_labels in labels]
-            labels_next_cat = to_categorical(pad_sequences(labels_next, pad_to_len, value=self.label_pad_value),
-                                    self.num_classes)
-            labels_prev = [[self.label_pad_value] + sent_labels[:-1] for sent_labels in labels]
-            labels_prev_cat = to_categorical(pad_sequences(labels_prev, pad_to_len, value=self.label_pad_value),
-                                    self.num_classes)
-            return [words_input, casing_input, characters_input], [labels_cat, labels_prev_cat, labels_next_cat]
+        labels = pad_sequences([self.labels[i] for i in indices], pad_to_len, value=self.label_pad_value)
 
-        return [words_input, casing_input, characters_input], labels_cat
+        return [words_input, casing_input, characters_input], labels
 
     def __len__(self) -> int:
         return len(self.ranges)

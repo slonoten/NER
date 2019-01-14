@@ -93,10 +93,10 @@ def build_model_char_cnn_lstm(num_classes, embed_matrix, word_length, num_chars)
     concatenated_out = concatenate([word_embeddings_out, casings_input, char_flat_dropout_out], name='concat')
     bilstm_out = Bidirectional(LSTM(300, dropout=0.5, recurrent_dropout=0.25, return_sequences=True), name='bilstm')(
         concatenated_out)
-    print(bilstm_out.shape)
     td_fc_out = TimeDistributed(Dense(num_classes, activation='softmax'), name='tdfc')(bilstm_out)
     cnn_lstm_model = Model([words_indices_input, casings_input, chars_input], td_fc_out)
-    cnn_lstm_model.compile(optimizer='nadam', loss='categorical_crossentropy')
+    print(td_fc_out.shape)
+    cnn_lstm_model.compile(optimizer='nadam', loss='sparse_categorical_crossentropy')
     return cnn_lstm_model
 
 
@@ -163,7 +163,7 @@ def predict(model: Model,
     for i in range(len(data_generator)):
         model_input = data_generator[i]
         indices_and_lengths = data_generator.get_indices_and_lengths(i)
-        model_prediction = model.predict(model_input)[0].argmax(axis=-1)
+        model_prediction = model.predict(model_input).argmax(axis=-1)
         for sent_pred, (idx, length) in zip(model_prediction, indices_and_lengths):
             sent_labels = [idx_to_label[l] for l in sent_pred[-length:]]
             prediction[idx] = sent_labels
