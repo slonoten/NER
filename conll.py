@@ -1,11 +1,11 @@
 """Parsing CONLL format"""
 
 
-from typing import List, Tuple
+from typing import List, Tuple, Iterable
 
 
-def load_conll(file_name: str, indices: List[int], ignore_tokens: List[str]) -> Tuple:
-    ignore_set = set(ignore_tokens)
+def load_conll(file_name: str, indices: List[int], ignore_tokens: Iterable[str]=None) -> Tuple:
+    ignore_set = set(ignore_tokens) if ignore_tokens else {}
     new_sentence = False
     with open(file_name) as file:
         data = [[[]] for _ in indices]

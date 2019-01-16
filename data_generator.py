@@ -75,7 +75,9 @@ class DataGenerator(Sequence):
                                                          [0] * self.max_token_len) for i in indices])
         if self.predict:
             return [words_input, casing_input, characters_input]
-        labels = pad_sequences([self.labels[i] for i in indices], pad_to_len, value=self.label_pad_value)
+        labels = np.expand_dims(
+            pad_sequences([self.labels[i] for i in indices], pad_to_len, value=self.label_pad_value),
+            axis=-1)
 
         return [words_input, casing_input, characters_input], labels
 

@@ -30,7 +30,7 @@ class ModelEval(Callback):
         print(f'Precision: {f1[0]}, Recall: {f1[1]}, F1: {f1[2]}')
 
 
-conll_2003_data_dir = '/home/max/dev/samples/Named-Entity-Recognition-BidirectionalLSTM-CNN-CoNLL/data'
+conll_2003_data_dir = './data/conll-2003'
 
 conll_2003_indices = (0, 3)
 conll_2003_ignore = ('-DOCSTART-',)
@@ -39,7 +39,7 @@ char_cnn_max_token_len = 30
 
 train_data, train_labels = load_conll(os.path.join(conll_2003_data_dir, 'train.txt'),
                                       conll_2003_indices, conll_2003_ignore)
-validate_data, validate_labels = load_conll(os.path.join(conll_2003_data_dir, 'dev.txt'),
+validate_data, validate_labels = load_conll(os.path.join(conll_2003_data_dir, 'valid.txt'),
                                             conll_2003_indices, conll_2003_ignore)
 test_data, test_labels = load_conll(os.path.join(conll_2003_data_dir, 'test.txt'),
                                     conll_2003_indices, conll_2003_ignore)
@@ -53,7 +53,7 @@ characters = sorted({ch for sent in train_data + validate_data + test_data for w
 # characters = """!"#$%&\\'()*+,-./0123456789:;=?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[]`abcdefghijklmnopqrstuvwxyz"""
 char_to_idx = {ch: i + 1 for i, ch in enumerate(characters)}
 
-vocab, embed_matrix = load_embeddings('/home/max/ipython/glove/glove.6B.300d.txt', 40000)
+vocab, embed_matrix = load_embeddings('./embeddings/glove.6B.300d.txt', 40000)
 
 # vocab, embed_matrix = load_embeddings('/home/max/ipython/sber-nlp-course/wiki-news-300d-1M-subword.vec', 40000)
 
@@ -70,7 +70,8 @@ evaluator = ModelEval(DataGenerator(validate_data, vocab, char_to_idx, max_token
 
 model_saver = ModelCheckpoint(filepath='./checkpoints/crf_model_x{epoch:02d}.hdf5', verbose=1, save_best_only=False)
 
-model.fit_generator(train_generator, epochs=50, callbacks=[evaluator, model_saver])
+model.fit_generator(train_generator, epochs=50, steps_per_epoch=len(train_generator),
+                    callbacks=[evaluator, model_saver])
 
 #  model.load_weights('./checkpoints/model_v3_29.hdf5')
 
