@@ -35,13 +35,14 @@ class DataGenerator(Sequence):
     def __init__(self, sentences: List[List[str]],
                  vocab: Dict[str, int],
                  char_to_idx: Dict[str, int],
-                 labels: List[List[str]] = None,
+                 labels: List[List[Any]] = None,
                  label_to_idx: Dict[str, int] = None,
+                 categorical_labels: List[List[int]] = None,
                  batch_size: int = -1,
                  predict_next: bool = False,
                  max_token_len: int = 32):
 
-        self.predict = not labels
+        self.predict = not (labels or categorical_labels)
         self.predict_next = predict_next
         lengths = ((i, len(sent)) for i, sent in enumerate(sentences))
         self.sorted_lengths = sorted(lengths, key=itemgetter(1))
@@ -55,9 +56,12 @@ class DataGenerator(Sequence):
             self.indices = DataGenerator.shuffle_indices(self.sorted_lengths, num_batches * batch_size)
             self.ranges = [(i * batch_size, (i + 1) * batch_size) for i in range(num_batches)]
             # Подготовим метки
-            self.num_classes = len(label_to_idx)
-            self.labels = [[label_to_idx[l] for l in sent] for sent in labels]
-            self.label_pad_value = label_to_idx['O']
+            if labels:
+                self.labels = [[label_to_idx[l] for l in sent] for sent in labels]
+                self.label_pad_value = label_to_idx['O']
+            else:
+                self.labels = categorical_labels
+                self.label_pad_value = 0
         self.word_indices = [sentence_to_indices(vocab, sent) for sent in sentences]
         self.word_casing = [[get_casing(w) for w in sent] for sent in sentences]
         self.word_characters = [[word_to_char_indices(char_to_idx, w, max_token_len)

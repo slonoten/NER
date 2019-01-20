@@ -3,6 +3,7 @@
 from typing import List, Dict
 
 from keras.layers.merge import concatenate
+from keras.optimizers import nadam
 from keras.models import Model
 from keras.layers import Input, Dense, TimeDistributed, Flatten, LSTM, Conv1D, MaxPooling1D, Dropout, Activation, \
     Bidirectional, Lambda, BatchNormalization
@@ -95,8 +96,8 @@ def build_model_char_cnn_lstm(num_classes, embed_matrix, word_length, num_chars)
         concatenated_out)
     td_fc_out = TimeDistributed(Dense(num_classes, activation='softmax'), name='tdfc')(bilstm_out)
     cnn_lstm_model = Model([words_indices_input, casings_input, chars_input], td_fc_out)
-    print(td_fc_out.shape)
-    cnn_lstm_model.compile(optimizer='nadam', loss='sparse_categorical_crossentropy')
+    opt = nadam(lr=0.0005)
+    cnn_lstm_model.compile(optimizer=opt, loss='sparse_categorical_crossentropy')
     return cnn_lstm_model
 
 
@@ -140,7 +141,7 @@ def build_model_predict_next(num_classes, embed_matrix, word_length, num_chars):
     bilstm_out = concatenate([forward_lstm_out, reverse(backward_lstm_out)])
     # Предсказываем текущую метку по выходам bilstm
     bilstm_2_out = Bidirectional(LSTM(128, dropout=0.5, recurrent_dropout=0.25, return_sequences=True))(bilstm_out)
-    fc_out = TimeDistributed(Dense(128, activation='relu'), name='fc_1')(bilstm_out)
+    fc_out = TimeDistributed(Dense(128, activation='relu'), name='fc_1')(bilstm_2_out)
     bn_out = TimeDistributed(BatchNormalization(axis=1))(fc_out)
     fc_2_out = TimeDistributed(Dense(num_classes, activation='softmax'), name='fc_2')(bn_out)
     # forward lstm предсказывает следующую метку справа
@@ -158,14 +159,14 @@ def build_model_predict_next(num_classes, embed_matrix, word_length, num_chars):
 
 def predict(model: Model,
             data_generator: DataGenerator,
-            idx_to_label: Dict[int, str]):
+            idx_to_label: Dict[int, str] = None):
     prediction = [None] * sum(len(data_generator.get_indices_and_lengths(i)) for i in range(len(data_generator)))
     for i in range(len(data_generator)):
         model_input = data_generator[i]
         indices_and_lengths = data_generator.get_indices_and_lengths(i)
         model_prediction = model.predict(model_input).argmax(axis=-1)
         for sent_pred, (idx, length) in zip(model_prediction, indices_and_lengths):
-            sent_labels = [idx_to_label[l] for l in sent_pred[-length:]]
+            sent_labels = [idx_to_label[l] for l in sent_pred[-length:]] if idx_to_label else sent_pred[-length:]
             prediction[idx] = sent_labels
     assert all(prediction)
     return prediction
