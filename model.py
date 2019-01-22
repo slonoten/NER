@@ -168,6 +168,6 @@ def predict(model: Model,
         for sent_pred, (idx, length) in zip(model_prediction, indices_and_lengths):
             sent_labels = [idx_to_label[l] for l in sent_pred[-length:]] if idx_to_label else sent_pred[-length:]
             prediction[idx] = sent_labels
-    assert all(prediction)
+    # assert all(prediction)
     return prediction
 

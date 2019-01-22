@@ -2,6 +2,7 @@
 
 import os
 
+import model
 from conll import load_conll
 from embeddings import load_embeddings
 from model import *
@@ -15,17 +16,21 @@ from typing import List, Any, Tuple, Iterable
 from sklearn.metrics import f1_score
 
 
+def flatten(lst: List[List[Any]]) -> List[Any]:
+    return [x for inner in lst for x in inner]
+
+
 class ModelEval(Callback):
     def __init__(self,
                  generator: DataGenerator,
                  labels: List[List[int]]):
-        self.labels = labels
+        self.labels_flat = flatten(labels)
         self.generator = generator
         self.history = []
 
     def on_epoch_end(self, epoch, logs={}):
         pred = predict(self.model, self.generator)
-        f1 = f1_score(pred, self.labels)
+        f1 = f1_score(flatten(pred), self.labels_flat, average='weighted')
         self.history.append(f1)
         print(f'Precision: {f1[0]}, Recall: {f1[1]}, F1: {f1[2]}')
 
@@ -66,6 +71,8 @@ vocab, embed_matrix = load_embeddings('./embeddings/rus/ft_native_300_ru_wiki_le
 
 # vocab, embed_matrix = load_embeddings('/home/max/ipython/sber-nlp-course/wiki-news-300d-1M-subword.vec', 40000)
 
+print(max(c for sent in train_morph for c in sent), num_classes)
+
 embed_dim, _ = embed_matrix.shape
 
 model = build_model_char_cnn_lstm(num_classes, embed_matrix, 30, len(characters))
@@ -77,15 +84,13 @@ evaluator = ModelEval(DataGenerator(test_tokens, vocab, char_to_idx,
                                     max_token_len=char_cnn_max_token_len),
                       test_morph)
 
-model_saver = ModelCheckpoint(filepath='./checkpoints/crf_model_x{epoch:02d}.hdf5', verbose=1, save_best_only=False)
+model_saver = ModelCheckpoint(filepath='./checkpoints/morph_{epoch:02d}.hdf5', verbose=1, save_best_only=False)
 
 model.fit_generator(train_generator, epochs=50, steps_per_epoch=len(train_generator),
-                    callbacks=[evaluator, model_saver])
+                    callbacks=[model_saver, evaluator])
 
-#  model.load_weights('./checkpoints/model_v3_29.hdf5')
+model.load_weights('./checkpoints/morph_01.hdf5')
 
-prediction = predict(model,
-                     DataGenerator(test_tokens, vocab, char_to_idx,
-                                   max_token_len=char_cnn_max_token_len))
+prediction = predict(model, DataGenerator(test_tokens, vocab, char_to_idx, max_token_len=char_cnn_max_token_len))
 
-print(f1_score(prediction, test_morph))
+print(f1_score(flatten(prediction), flatten(test_morph), average='weighted'))

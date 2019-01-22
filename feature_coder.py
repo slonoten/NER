@@ -23,7 +23,6 @@ class FeatureCoder:
 
     def decode_one(self, code: int) -> Tuple[str, List[Tuple[str, str]]]:
         assert self.tag_ranges_rev, 'Coder not initialized'
-        code -= self.padding_shift
         for tag_id, start_range in self.tag_ranges_rev:
             if code >= start_range:
                 code -= start_range
@@ -46,7 +45,7 @@ class FeatureCoder:
             i = val_dict[val] if val else 0
             code = code * (len(val_dict) + 1) + i
         code += self.tag_ranges[tag_id]
-        return code + self.padding_shift
+        return code
 
     def fit(self, text_pos_tags: Iterable[List[str]], text_features: Iterable[List[str]]) -> int:
         for sent_tags, sent_features in zip(text_pos_tags, tqdm(text_features, 'Analyzing')):
@@ -58,7 +57,7 @@ class FeatureCoder:
                         self.pos_tag_to_features[tag][name][val] += 1
                 else:
                     self.pos_tag_to_features[tag]
-        num_classes = 0
+        num_classes = self.padding_shift  # 0 class reserved for padding
         self.tag_to_encode_seq = dict()
         self.tag_id_to_decode_seq = []
         self.tag_ranges = []
