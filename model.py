@@ -96,12 +96,11 @@ def build_model_char_cnn_lstm(num_classes, embed_matrix, word_length, num_chars)
         concatenated_out)
     td_fc_out = TimeDistributed(Dense(num_classes, activation='softmax'), name='tdfc')(bilstm_out)
     cnn_lstm_model = Model([words_indices_input, casings_input, chars_input], td_fc_out)
-    opt = nadam(lr=0.0005)
-    cnn_lstm_model.compile(optimizer=opt, loss='sparse_categorical_crossentropy')
+    cnn_lstm_model.compile(optimizer='nadam', loss='sparse_categorical_crossentropy')
     return cnn_lstm_model
 
 
-def build_model_predict_next(num_classes, embed_matrix, word_length, num_chars):
+def build_model_predict_neighbour(num_classes, embed_matrix, word_length, num_chars):
     words_indices_input = Input(shape=(None,), name='words_indices_input')
     word_embeddings_out = Embedding(embed_matrix.shape[0],
                                     embed_matrix.shape[1],
@@ -152,7 +151,7 @@ def build_model_predict_next(num_classes, embed_matrix, word_length, num_chars):
     fc_bw_2_out = TimeDistributed(Dense(num_classes, activation='softmax', name='fc_bw_2'))(fc_bw_out)
 
     model = Model([words_indices_input, casings_input, chars_input], [fc_2_out, fc_bw_2_out, fc_fw_2_out])
-    model.compile(optimizer='nadam', loss='categorical_crossentropy')
+    model.compile(optimizer='nadam', loss='sparse_categorical_crossentropy')
 
     return model
 
@@ -164,7 +163,7 @@ def predict(model: Model,
     for i in range(len(data_generator)):
         model_input = data_generator[i]
         indices_and_lengths = data_generator.get_indices_and_lengths(i)
-        model_prediction = model.predict(model_input).argmax(axis=-1)
+        model_prediction = model.predict(model_input)[0].argmax(axis=-1)
         for sent_pred, (idx, length) in zip(model_prediction, indices_and_lengths):
             sent_labels = [idx_to_label[l] for l in sent_pred[-length:]] if idx_to_label else sent_pred[-length:]
             prediction[idx] = sent_labels

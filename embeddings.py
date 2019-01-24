@@ -42,6 +42,6 @@ def load_embeddings(embed_path: str,
 
 
 def sentence_to_indices(vocab: Dict[str, int], words: List[str]) -> List[int]:
-    return [(idx if idx else len(vocab) + 1) for idx in (vocab.get(w.lower()) for w in words)]
+    return [(idx if idx else len(vocab) + 1) for idx in (vocab.get(w) for w in words)]
 
 

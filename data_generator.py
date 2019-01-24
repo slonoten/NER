@@ -2,7 +2,7 @@
 
 import numpy as np
 
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Union
 from operator import itemgetter
 from random import sample
 from itertools import groupby, accumulate
@@ -37,8 +37,8 @@ class DataGenerator(Sequence):
                  char_to_idx: Dict[str, int],
                  labels: List[List[Any]] = None,
                  label_to_idx: Dict[str, int] = None,
-                 categorical_labels: List[List[int]] = None,
-                 batch_size: int = -1,
+                 categorical_labels: Union[List[List[int]], List[List[List[int]]]] = None,
+                 batch_size: int = 32,
                  predict_next: bool = False,
                  max_token_len: int = 32):
 
@@ -55,13 +55,15 @@ class DataGenerator(Sequence):
             num_batches = len(sentences) // batch_size
             self.indices = DataGenerator.shuffle_indices(self.sorted_lengths, num_batches * batch_size)
             self.ranges = [(i * batch_size, (i + 1) * batch_size) for i in range(num_batches)]
+            print(len(self.ranges))
             # Подготовим метки
             if labels:
-                self.labels = [[label_to_idx[l] for l in sent] for sent in labels]
+                self.labels = [[[label_to_idx[l] for l in sent] for sent in labels]]
                 self.label_pad_value = label_to_idx['O']
             else:
-                self.labels = categorical_labels
+                self.labels = categorical_labels if isinstance(categorical_labels[0][0], list) else [categorical_labels]
                 self.label_pad_value = 0
+            assert any([len(l) == len(sentences) for l in self.labels])
         self.word_indices = [sentence_to_indices(vocab, sent) for sent in sentences]
         self.word_casing = [[get_casing(w) for w in sent] for sent in sentences]
         self.word_characters = [[word_to_char_indices(char_to_idx, w, max_token_len)
@@ -79,9 +81,9 @@ class DataGenerator(Sequence):
                                                          [0] * self.max_token_len) for i in indices])
         if self.predict:
             return [words_input, casing_input, characters_input]
-        labels = np.expand_dims(
-            pad_sequences([self.labels[i] for i in indices], pad_to_len, value=self.label_pad_value),
-            axis=-1)
+        labels = [np.expand_dims(
+            pad_sequences([l[i] for i in indices], pad_to_len, value=self.label_pad_value), axis=-1)
+            for l in self.labels]
 
         return [words_input, casing_input, characters_input], labels
 
