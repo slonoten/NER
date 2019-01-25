@@ -61,14 +61,15 @@ embed_dim = embed_matrix.shape[1]
 
 model = build_model_char_cnn_lstm(len(label_classes), embed_matrix, 30, len(characters))
 
-train_generator = DataGenerator(train_data, vocab, char_to_idx, train_labels,
-                                label_to_idx, 32, max_token_len=char_cnn_max_token_len)
+train_generator = DataGenerator(train_data, vocab, char_to_idx, train_labels, label_to_idx, 32,
+                                max_token_len=char_cnn_max_token_len)
 
 evaluator = ModelEval(DataGenerator(validate_data, vocab, char_to_idx, max_token_len=char_cnn_max_token_len),
                       validate_labels,
                       idx_to_label)
 
-model_saver = ModelCheckpoint(filepath='./checkpoints/crf_model_x{epoch:02d}.hdf5', verbose=1, save_best_only=False)
+model_saver = ModelCheckpoint(filepath='./checkpoints/' + model.name.replace(' ', '_') + '{epoch:02d}.hdf5',
+                              verbose=1, save_best_only=False)
 
 model.fit_generator(train_generator, epochs=50, callbacks=[evaluator, model_saver])
 

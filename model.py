@@ -97,6 +97,7 @@ def build_model_char_cnn_lstm(num_classes, embed_matrix, word_length, num_chars)
     td_fc_out = TimeDistributed(Dense(num_classes, activation='softmax'), name='tdfc')(bilstm_out)
     cnn_lstm_model = Model([words_indices_input, casings_input, chars_input], td_fc_out)
     cnn_lstm_model.compile(optimizer='nadam', loss='sparse_categorical_crossentropy')
+    cnn_lstm_model.name = 'char_cnn_bilstmm'
     return cnn_lstm_model
 
 
@@ -163,8 +164,11 @@ def predict(model: Model,
     for i in range(len(data_generator)):
         model_input = data_generator[i]
         indices_and_lengths = data_generator.get_indices_and_lengths(i)
-        model_prediction = model.predict(model_input)[0].argmax(axis=-1)
-        for sent_pred, (idx, length) in zip(model_prediction, indices_and_lengths):
+        softmax_prediction = model.predict(model_input)
+        if softmax_prediction.shape == 4:
+            softmax_prediction = softmax_prediction[0]
+        class_prediction = softmax_prediction.argmax(axis=-1)
+        for sent_pred, (idx, length) in zip(class_prediction, indices_and_lengths):
             sent_labels = [idx_to_label[l] for l in sent_pred[-length:]] if idx_to_label else sent_pred[-length:]
             prediction[idx] = sent_labels
     # assert all(prediction)
