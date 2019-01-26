@@ -3,7 +3,7 @@
 import os
 
 from conll import load_conll
-from embeddings import load_embeddings
+from embeddings import Embeddings
 from model import *
 from data_generator import DataGenerator
 from validation import compute_f1
@@ -53,18 +53,23 @@ characters = sorted({ch for sent in train_data + validate_data + test_data for w
 # characters = """!"#$%&\\'()*+,-./0123456789:;=?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[]`abcdefghijklmnopqrstuvwxyz"""
 char_to_idx = {ch: i + 1 for i, ch in enumerate(characters)}
 
-vocab, embed_matrix = load_embeddings('./embeddings/eng/glove.6B.300d.txt', 40000)
+word_set = {w for sent in train_data + validate_data + test_data for w in sent}
+
+print(f'{len(word_set)} unique words found.')
+
+embed = Embeddings('./embeddings/eng/glove.6B.300d.txt', True, word_set=word_set)
+# embed = Embeddings('/home/max/ipython/sber-nlp-course/wiki-news-300d-1M-subword.vec', False, 40000)
+embed_matrix = embed.matrix
 
 # vocab, embed_matrix = load_embeddings('/home/max/ipython/sber-nlp-course/wiki-news-300d-1M-subword.vec', 40000)
 
-embed_dim = embed_matrix.shape[1]
 
 model = build_model_char_cnn_lstm(len(label_classes), embed_matrix, 30, len(characters))
 
-train_generator = DataGenerator(train_data, vocab, char_to_idx, train_labels, label_to_idx, 32,
+train_generator = DataGenerator(train_data, embed, char_to_idx, train_labels, label_to_idx, 32,
                                 max_token_len=char_cnn_max_token_len)
 
-evaluator = ModelEval(DataGenerator(validate_data, vocab, char_to_idx, max_token_len=char_cnn_max_token_len),
+evaluator = ModelEval(DataGenerator(validate_data, embed, char_to_idx, max_token_len=char_cnn_max_token_len),
                       validate_labels,
                       idx_to_label)
 
@@ -76,7 +81,7 @@ model.fit_generator(train_generator, epochs=50, callbacks=[evaluator, model_save
 #  model.load_weights('./checkpoints/model_v3_29.hdf5')
 
 prediction = predict(model,
-                     DataGenerator(test_data, vocab, char_to_idx, max_token_len=char_cnn_max_token_len),
+                     DataGenerator(test_data, embed, char_to_idx, max_token_len=char_cnn_max_token_len),
                      idx_to_label)
 
 print(compute_f1(prediction, test_labels))

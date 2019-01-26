@@ -2,7 +2,7 @@
 
 import numpy as np
 
-from typing import List, Dict, Any, Union
+from typing import List, Dict, Any, Union, Mapping
 from operator import itemgetter
 from random import sample
 from itertools import groupby, accumulate
@@ -10,7 +10,6 @@ from itertools import groupby, accumulate
 from keras.utils import Sequence
 from keras.preprocessing.sequence import pad_sequences
 
-from embeddings import sentence_to_indices
 from word_casing import get_casing, CASING_PADDING
 from padding import pad_sequence_left, pad_sequence_center
 
@@ -33,8 +32,8 @@ class DataGenerator(Sequence):
         return [shuffled_by_len[i] for i in indices]
 
     def __init__(self, sentences: List[List[str]],
-                 vocab: Dict[str, int],
-                 char_to_idx: Dict[str, int],
+                 vocab: Mapping[str, int],
+                 char_to_idx: Mapping[str, int],
                  labels: List[List[Any]] = None,
                  label_to_idx: Dict[str, int] = None,
                  categorical_labels: Union[List[List[int]], List[List[List[int]]]] = None,
@@ -64,7 +63,7 @@ class DataGenerator(Sequence):
                 self.labels = categorical_labels if isinstance(categorical_labels[0][0], list) else [categorical_labels]
                 self.label_pad_value = 0
             assert any([len(l) == len(sentences) for l in self.labels])
-        self.word_indices = [sentence_to_indices(vocab, sent) for sent in sentences]
+        self.word_indices = [[vocab[word] for word in sent] for sent in sentences]
         self.word_casing = [[get_casing(w) for w in sent] for sent in sentences]
         self.word_characters = [[word_to_char_indices(char_to_idx, w, max_token_len)
                                  for w in sent] for sent in sentences]
