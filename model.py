@@ -2,6 +2,7 @@
 
 from typing import List, Dict
 
+
 from keras.layers.merge import concatenate
 from keras.optimizers import nadam
 from keras.models import Model
@@ -16,7 +17,7 @@ from data_generator import DataGenerator
 import keras.backend as K
 
 
-def build_model_char_cnn_lstm_crf(n_classes, embed_matrix, word_length, n_chars):
+def build_char_cnn_lstm_graph(num_classes, embed_matrix, word_length, num_chars):
     words_indices_input = Input(shape=(None,), name='words_indices_input')
     word_embeddings_out = Embedding(embed_matrix.shape[0],
                                     embed_matrix.shape[1],
@@ -30,7 +31,7 @@ def build_model_char_cnn_lstm_crf(n_classes, embed_matrix, word_length, n_chars)
     chars_input = Input(shape=(None, word_length),
                         name='chars_input')
     char_embeddings_out = \
-        TimeDistributed(Embedding(n_chars,
+        TimeDistributed(Embedding(num_chars + 1,  # plus one for padding
                                   32,
                                   embeddings_initializer=RandomUniform(minval=-0.5, maxval=0.5)),
                         name='char_embeddings')(chars_input)
@@ -51,54 +52,28 @@ def build_model_char_cnn_lstm_crf(n_classes, embed_matrix, word_length, n_chars)
     concatenated_out = concatenate([word_embeddings_out, casings_input, char_flat_dropout_out], name='concat')
     bilstm_out = Bidirectional(LSTM(300, dropout=0.5, recurrent_dropout=0.25, return_sequences=True), name='bilstm')(
         concatenated_out)
-    td_fc_out = TimeDistributed(Dense(50,), name='tdfc')(bilstm_out)
-    relu_out = Activation('relu', name='activation')(td_fc_out)
-    crf_out = CRF(n_classes, name='crf')(relu_out)
-    cnn_lstm_crf_model = Model([words_indices_input, casings_input, chars_input], crf_out)
-    cnn_lstm_crf_model.compile(optimizer='nadam', loss=crf_loss, metrics=[crf_viterbi_accuracy])
-    return cnn_lstm_crf_model
+
+    return [words_indices_input, casings_input, chars_input], bilstm_out
 
 
 def build_model_char_cnn_lstm(num_classes, embed_matrix, word_length, num_chars):
-    words_indices_input = Input(shape=(None,), name='words_indices_input')
-    word_embeddings_out = Embedding(embed_matrix.shape[0],
-                                    embed_matrix.shape[1],
-                                    weights=[embed_matrix],
-                                    trainable=False,
-                                    name='word_embeddings')(words_indices_input)
-
-    casings_input = Input(shape=(None, 6),
-                          name='casings_input')
-
-    chars_input = Input(shape=(None, word_length),
-                        name='chars_input')
-    char_embeddings_out = \
-        TimeDistributed(Embedding(num_chars,
-                                  32,
-                                  embeddings_initializer=RandomUniform(minval=-0.5, maxval=0.5)),
-                        name='char_embeddings')(chars_input)
-
-    char_dropout_out = Dropout(0.5, name='char_dropout')(char_embeddings_out)
-
-    char_conv1d_out = TimeDistributed(Conv1D(kernel_size=3,
-                                             filters=32,
-                                             padding='same',
-                                             activation='tanh',
-                                             strides=1,
-                                             name='char_conv1d'))(char_dropout_out)
-
-    char_maxpool_out = TimeDistributed(MaxPooling1D(word_length), name='char_maxpool')(char_conv1d_out)
-    char_flat_out = TimeDistributed(Flatten(), name='char_flat')(char_maxpool_out)
-    char_flat_dropout_out = Dropout(0.5, name='char_flat_dropout')(char_flat_out)
-
-    concatenated_out = concatenate([word_embeddings_out, casings_input, char_flat_dropout_out], name='concat')
-    bilstm_out = Bidirectional(LSTM(300, dropout=0.5, recurrent_dropout=0.25, return_sequences=True), name='bilstm')(
-        concatenated_out)
-    td_fc_out = TimeDistributed(Dense(num_classes, activation='softmax'), name='tdfc')(bilstm_out)
-    cnn_lstm_model = Model([words_indices_input, casings_input, chars_input], td_fc_out)
+    inputs, bilstm_out = build_char_cnn_lstm_graph(num_classes, embed_matrix, word_length, num_chars)
+    td_fc_out = TimeDistributed(Dense(num_classes + 1, activation='softmax'), name='tdfc')(bilstm_out)
+    cnn_lstm_model = Model(inputs, td_fc_out)
     cnn_lstm_model.compile(optimizer='nadam', loss='sparse_categorical_crossentropy')
-    cnn_lstm_model.name = 'char_cnn_bilstmm'
+    cnn_lstm_model.name = 'char_cnn_bilstm'
     return cnn_lstm_model
+
+
+def build_model_char_cnn_lstm_crf(num_classes, embed_matrix, word_length, num_chars):
+    inputs, bilstm_out = build_char_cnn_lstm_graph(num_classes, embed_matrix, word_length, num_chars)
+    td_fc_out = TimeDistributed(Dense(50,), name='tdfc')(bilstm_out)
+    relu_out = Activation('relu', name='activation')(td_fc_out)
+    crf_out = CRF(num_classes + 1, name='crf')(relu_out)
+    cnn_lstm_crf_model = Model(inputs, crf_out)
+    cnn_lstm_crf_model.compile(optimizer='nadam', loss=crf_loss, metrics=[crf_viterbi_accuracy])
+    cnn_lstm_crf_model.name = 'char_cnn_bilstm_crf'
+    return cnn_lstm_crf_model
 
 
 def build_model_predict_neighbour(num_classes, embed_matrix, word_length, num_chars):
@@ -115,7 +90,7 @@ def build_model_predict_neighbour(num_classes, embed_matrix, word_length, num_ch
     chars_input = Input(shape=(None, word_length),
                         name='chars_input')
     char_embeddings_out = \
-        TimeDistributed(Embedding(num_chars,
+        TimeDistributed(Embedding(num_chars + 1,
                                   32,
                                   embeddings_initializer=RandomUniform(minval=-0.5, maxval=0.5)),
                         name='char_embeddings')(chars_input)
@@ -159,7 +134,9 @@ def build_model_predict_neighbour(num_classes, embed_matrix, word_length, num_ch
 
 def predict(model: Model,
             data_generator: DataGenerator,
-            idx_to_label: Dict[int, str] = None):
+            label_classes: List[str] = None):
+    idx_to_label = {i + 1: l for i, l in enumerate(label_classes)} if label_classes else None
+    idx_to_label[0] = 'PAD'
     prediction = [None] * sum(len(data_generator.get_indices_and_lengths(i)) for i in range(len(data_generator)))
     for i in range(len(data_generator)):
         model_input = data_generator[i]

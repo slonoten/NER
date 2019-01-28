@@ -7,6 +7,7 @@ from embeddings import Embeddings
 from model import *
 from data_generator import DataGenerator
 from validation import compute_f1
+from ner_model import *
 
 from keras.callbacks import Callback, ModelCheckpoint
 
@@ -15,8 +16,7 @@ class ModelEval(Callback):
     def __init__(self,
                  generator: DataGenerator,
                  labels: List[List[str]],
-                 index_to_label: Dict[int, str],
-                 predict_next: bool = False):
+                 index_to_label: Dict[int, str]):
         self.labels = labels
         self.predict_next = predict_next
         self.generator = generator
@@ -44,45 +44,39 @@ validate_data, validate_labels = load_conll(os.path.join(conll_2003_data_dir, 'd
 test_data, test_labels = load_conll(os.path.join(conll_2003_data_dir, 'test.txt'),
                                     conll_2003_indices, conll_2003_ignore)
 
-# label_classes = ['I-PER', 'B-MISC', 'I-MISC', 'I-LOC', 'B-ORG', 'I-ORG', 'B-LOC', 'O', 'B-PER']
 label_classes = sorted({l for sent_labels in train_labels + validate_labels + test_labels for l in sent_labels})
-label_to_idx = {l: i for i, l in enumerate(label_classes)}
-idx_to_label = {i: l for l, i in label_to_idx.items()}
 
 characters = sorted({ch for sent in train_data + validate_data + test_data for word in sent for ch in word})
-# characters = """!"#$%&\\'()*+,-./0123456789:;=?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[]`abcdefghijklmnopqrstuvwxyz"""
-char_to_idx = {ch: i + 1 for i, ch in enumerate(characters)}
 
 word_set = {w for sent in train_data + validate_data + test_data for w in sent}
 
 print(f'{len(word_set)} unique words found.')
 
 embed = Embeddings('./embeddings/eng/glove.6B.300d.txt', True, word_set=word_set)
-# embed = Embeddings('/home/max/ipython/sber-nlp-course/wiki-news-300d-1M-subword.vec', False, 40000)
 embed_matrix = embed.matrix
 
-# vocab, embed_matrix = load_embeddings('/home/max/ipython/sber-nlp-course/wiki-news-300d-1M-subword.vec', 40000)
+train_inputs = make_ner_inputs(train_data, embed, characters, char_cnn_max_token_len)
+train_outputs = make_ner_one_hot_outputs(train_labels, label_classes)
+validate_inputs = make_ner_inputs(validate_data, embed, characters, char_cnn_max_token_len)
+test_inputs = make_ner_inputs(test_data, embed, characters, char_cnn_max_token_len)
 
+# model = build_model_char_cnn_lstm(len(label_classes), embed_matrix, 30, len(characters))
+model = build_model_char_cnn_lstm_crf(len(label_classes), embed_matrix, 30, len(characters))
 
-model = build_model_char_cnn_lstm(len(label_classes), embed_matrix, 30, len(characters))
+train_generator = DataGenerator(train_inputs, train_outputs, 32)
 
-train_generator = DataGenerator(train_data, embed, char_to_idx, train_labels, label_to_idx, 32,
-                                max_token_len=char_cnn_max_token_len)
-
-evaluator = ModelEval(DataGenerator(validate_data, embed, char_to_idx, max_token_len=char_cnn_max_token_len),
+evaluator = ModelEval(DataGenerator(validate_inputs),
                       validate_labels,
-                      idx_to_label)
+                      label_classes)
 
 model_saver = ModelCheckpoint(filepath='./checkpoints/' + model.name.replace(' ', '_') + '{epoch:02d}.hdf5',
                               verbose=1, save_best_only=False)
 
-model.fit_generator(train_generator, epochs=50, callbacks=[evaluator, model_saver])
+# model.fit_generator(train_generator, epochs=50, callbacks=[evaluator, model_saver])
 
-#  model.load_weights('./checkpoints/model_v3_29.hdf5')
+model.load_weights('./checkpoints/char_cnn_bilstm_crf17.hdf5')
 
-prediction = predict(model,
-                     DataGenerator(test_data, embed, char_to_idx, max_token_len=char_cnn_max_token_len),
-                     idx_to_label)
+prediction = predict(model, DataGenerator(test_inputs), label_classes)
 
 print(compute_f1(prediction, test_labels))
 
