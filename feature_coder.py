@@ -48,7 +48,7 @@ class FeatureCoder:
         return code
 
     def fit(self, text_pos_tags: Iterable[List[str]], text_features: Iterable[List[str]]) -> int:
-        for sent_tags, sent_features in zip(text_pos_tags, tqdm(text_features, 'Analyzing')):
+        for sent_tags, sent_features in zip(text_pos_tags, tqdm(text_features, 'Analyzing features')):
             for tag, features_str in zip(sent_tags, sent_features):
                 features = [fp.split('=') for fp in features_str.split('|') if '=' in fp]
                 if features:
@@ -75,7 +75,7 @@ class FeatureCoder:
 
     def encode(self, text_pos_tags: Iterable[List[str]], text_features: Iterable[List[str]]) -> List[List[int]]:
         text_morph = []
-        for sent_tags, sent_features in zip(text_pos_tags, tqdm(text_features, 'Encoding')):
+        for sent_tags, sent_features in zip(text_pos_tags, tqdm(text_features, 'Encoding features')):
             sent_morph = []
             for tag, features_str in zip(sent_tags, sent_features):
                 features = [fp.split('=') for fp in features_str.split('|') if '=' in fp]
@@ -85,7 +85,7 @@ class FeatureCoder:
 
     def decode(self, encoded_features: List[List[int]]) -> Tuple[List[List[str]], List[List[str]]]:
         text_pos, text_features = [], []
-        for sent_codes in tqdm(encoded_features, 'Decoding'):
+        for sent_codes in tqdm(encoded_features, 'Decoding features'):
             sent_pos, sent_features = [], []
             for code in sent_codes:
                 pos, feature_list = self.decode_one(code)

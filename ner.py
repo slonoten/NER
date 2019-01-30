@@ -31,11 +31,10 @@ class ModelEval(Callback):
 
 
 conll_2003_data_dir = './data/conll-2003'
-
 conll_2003_indices = (0, 3)
 conll_2003_ignore = ('-DOCSTART-',)
 
-char_cnn_max_token_len = 30
+char_cnn_width = 30
 
 train_data, train_labels = load_conll(os.path.join(conll_2003_data_dir, 'train.txt'),
                                       conll_2003_indices, conll_2003_ignore)
@@ -55,10 +54,10 @@ print(f'{len(word_set)} unique words found.')
 embed = Embeddings('./embeddings/eng/glove.6B.300d.txt', True, word_set=word_set)
 embed_matrix = embed.matrix
 
-train_inputs = make_ner_inputs(train_data, embed, characters, char_cnn_max_token_len)
+train_inputs = make_ner_inputs(train_data, embed, characters, char_cnn_width)
 train_outputs = make_ner_one_hot_outputs(train_labels, label_classes)
-validate_inputs = make_ner_inputs(validate_data, embed, characters, char_cnn_max_token_len)
-test_inputs = make_ner_inputs(test_data, embed, characters, char_cnn_max_token_len)
+validate_inputs = make_ner_inputs(validate_data, embed, characters, char_cnn_width)
+test_inputs = make_ner_inputs(test_data, embed, characters, char_cnn_width)
 
 # model = build_model_char_cnn_lstm(len(label_classes), embed_matrix, 30, len(characters))
 model = build_model_char_cnn_lstm_crf(len(label_classes), embed_matrix, 30, len(characters))

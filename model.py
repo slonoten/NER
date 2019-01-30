@@ -4,7 +4,6 @@ from typing import List, Dict
 
 
 from keras.layers.merge import concatenate
-from keras.optimizers import nadam
 from keras.models import Model
 from keras.layers import Input, Dense, TimeDistributed, Flatten, LSTM, Conv1D, MaxPooling1D, Dropout, Activation, \
     Bidirectional, Lambda, BatchNormalization
@@ -76,7 +75,7 @@ def build_model_char_cnn_lstm_crf(num_classes, embed_matrix, word_length, num_ch
     return cnn_lstm_crf_model
 
 
-def build_model_predict_neighbour(num_classes, embed_matrix, word_length, num_chars):
+def build_model_morph_rnn(num_classes, embed_matrix, word_length, num_chars):
     words_indices_input = Input(shape=(None,), name='words_indices_input')
     word_embeddings_out = Embedding(embed_matrix.shape[0],
                                     embed_matrix.shape[1],
@@ -128,21 +127,20 @@ def build_model_predict_neighbour(num_classes, embed_matrix, word_length, num_ch
 
     model = Model([words_indices_input, casings_input, chars_input], [fc_2_out, fc_bw_2_out, fc_fw_2_out])
     model.compile(optimizer='nadam', loss='sparse_categorical_crossentropy')
-
+    model.name = 'morph_rnn'
     return model
 
 
 def predict(model: Model,
             data_generator: DataGenerator,
             label_classes: List[str] = None):
-    idx_to_label = {i + 1: l for i, l in enumerate(label_classes)} if label_classes else None
-    idx_to_label[0] = 'PAD'
+    idx_to_label = {i: l for i, l in enumerate(['PAD'], label_classes)} if label_classes else None
     prediction = [None] * sum(len(data_generator.get_indices_and_lengths(i)) for i in range(len(data_generator)))
     for i in range(len(data_generator)):
         model_input = data_generator[i]
         indices_and_lengths = data_generator.get_indices_and_lengths(i)
         softmax_prediction = model.predict(model_input)
-        if softmax_prediction.shape == 4:
+        if isinstance(softmax_prediction, list):
             softmax_prediction = softmax_prediction[0]
         class_prediction = softmax_prediction.argmax(axis=-1)
         for sent_pred, (idx, length) in zip(class_prediction, indices_and_lengths):

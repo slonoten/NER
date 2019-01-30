@@ -31,13 +31,13 @@ def to_one_hot(indices: Any, num_classes: int):
     return np.eye(num_classes)[indices]
 
 
-def make_ner_outputs(sentences_labels: List[List[str]], labels: List[str]) -> List[List[List[int]]]:
-    label_to_index = build_labels_mapping(labels)
+def make_ner_outputs(sentences_labels: List[List[str]], label_classes: List[str]) -> List[List[List[int]]]:
+    label_to_index = build_labels_mapping(label_classes)
     return [[[[label_to_index[label]] for label in sentence]] for sentence in sentences_labels], [0]
 
 
-def make_ner_one_hot_outputs(sentences_labels: List[List[str]], labels: List[str]) -> List[List[List[int]]]:
-    label_to_index = build_labels_mapping(labels)
+def make_ner_one_hot_outputs(sentences_labels: List[List[str]], label_classes: List[str]) -> List[List[List[int]]]:
+    label_to_index = build_labels_mapping(label_classes)
     num_classes = len(label_to_index)
     one_hot_matrix = [[0] * i + [1] + [0] * (num_classes - i - 1) for i in range(num_classes)]
     return [[[one_hot_matrix[label_to_index[label]] for label in sentence]] for sentence in sentences_labels], \

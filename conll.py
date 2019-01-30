@@ -4,7 +4,8 @@
 from typing import List, Tuple, Iterable
 
 
-def load_conll(file_name: str, indices: List[int], ignore_tokens: Iterable[str]=None) -> Tuple:
+def load_conll(file_name: str, indices: List[int],
+               ignore_tokens: Iterable[str] = None, max_sentences: int = 0) -> Tuple:
     ignore_set = set(ignore_tokens) if ignore_tokens else {}
     new_sentence = False
     with open(file_name) as file:
@@ -14,6 +15,8 @@ def load_conll(file_name: str, indices: List[int], ignore_tokens: Iterable[str]=
             items = s.strip().split()
             if len(items) >= min_row_len:
                 if new_sentence:
+                    if max_sentences and len(data[0]) > max_sentences:
+                        break
                     if len(data[0][-1]) > 0:
                         for d in data:
                             d.append([])
