@@ -1,16 +1,17 @@
 """Обучаем и тестируем NER"""
 
 import os
+from datetime import datetime
 
 from conll import load_conll
 from morpho_embeddings import MorphoEmbeddings
-from morpho_model import make_morpho_inputs, make_morpho_outputs
-from model import *
+from morpho_model import make_morpho_inputs, make_morpho_outputs, build_model_morph_rnn
+from model import predict
 
 from feature_coder import FeatureCoder
 from data_generator import DataGenerator
 
-from keras.callbacks import Callback, ModelCheckpoint
+from keras.callbacks import Callback, ModelCheckpoint, CSVLogger
 from typing import List, Any
 
 from sklearn.metrics import f1_score, precision_score, recall_score
@@ -28,17 +29,18 @@ class ModelEval(Callback):
     def __init__(self,
                  generator: DataGenerator,
                  labels: List[List[int]]):
+        super(ModelEval, self).__init__()
         self.labels_flat = flatten(labels)
         self.generator = generator
-        self.history = []
 
-    def on_epoch_end(self, epoch, logs={}):
+    def on_epoch_end(self, epoch, logs=None):
+        logs = logs or {}
         pred_flat = flatten(predict(self.model, self.generator))
-        prec = precision_score(pred_flat, self.labels_flat, average='weighted')
+        precission = precision_score(pred_flat, self.labels_flat, average='weighted')
         recall = recall_score(pred_flat, self.labels_flat, average='weighted')
-        f1 = 2 * prec * recall / (prec + recall)
-        self.history.append(f1)
-        print(f'Precision: {prec}, Recall: {recall}, F1: {f1}')
+        f1 = 2 * precission * recall / (precission + recall)
+        logs['valid_f1'] = f1
+        print(f'Precision: {precission}, Recall: {recall}, F1: {f1}')
 
 
 gikrya_data_dir = './data/gikrya'
@@ -82,10 +84,12 @@ evaluator = ModelEval(DataGenerator(test_inputs),
 model_saver = ModelCheckpoint(filepath='./checkpoints/' + model.name.replace(' ', '_') + '_{epoch:02d}.hdf5',
                               verbose=1, save_best_only=False)
 
-model.fit_generator(train_generator, epochs=50, steps_per_epoch=len(train_generator),
-                    callbacks=[model_saver, evaluator])
+time_stamp = datetime.now().strftime("%d-%m-%Y_%H-%M-%S")
+csv_logger = CSVLogger(f"Morph_log_{time_stamp}.csv", append=False)
 
 # model.load_weights('./checkpoints/morph_01.hdf5')
+model.fit_generator(train_generator, epochs=50, steps_per_epoch=len(train_generator),
+                    callbacks=[model_saver, evaluator, csv_logger])
 
 prediction = predict(model, DataGenerator(test_inputs))
 

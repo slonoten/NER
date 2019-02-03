@@ -14,7 +14,7 @@ def compute_f1(pred_labels, true_labels):
 
     f1 = 0
     if (rec + prec) > 0:
-        f1 = 2.0 * prec * rec / (prec + rec);
+        f1 = 2.0 * prec * rec / (prec + rec)
 
     return prec, rec, f1
 
