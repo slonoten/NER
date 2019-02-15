@@ -85,7 +85,7 @@ model_saver = ModelCheckpoint(filepath='./checkpoints/' + model.name.replace(' '
                               verbose=1, save_best_only=False)
 
 time_stamp = datetime.now().strftime("%d-%m-%Y_%H-%M-%S")
-csv_logger = CSVLogger(f"Morph_log_{time_stamp}.csv", append=False)
+csv_logger = CSVLogger(f"./logs/Morph_log_{time_stamp}.csv", append=False)
 
 # model.load_weights('./checkpoints/morph_01.hdf5')
 model.fit_generator(train_generator, epochs=50, steps_per_epoch=len(train_generator),

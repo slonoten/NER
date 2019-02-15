@@ -18,7 +18,7 @@ from word_casing import get_casing, CASING_PADDING
 from char_features import encode_word
 
 
-def build_char_cnn_lstm_graph(num_classes, embed_matrix, word_length, num_chars):
+def build_char_cnn_lstm_graph(embed_matrix, word_length, num_chars):
     words_indices_input = Input(shape=(None,), name='words_indices_input')
     word_embeddings_out = Embedding(embed_matrix.shape[0],
                                     embed_matrix.shape[1],
@@ -58,7 +58,7 @@ def build_char_cnn_lstm_graph(num_classes, embed_matrix, word_length, num_chars)
 
 
 def build_model_char_cnn_lstm(num_classes, embed_matrix, word_length, num_chars):
-    inputs, bilstm_out = build_char_cnn_lstm_graph(num_classes, embed_matrix, word_length, num_chars)
+    inputs, bilstm_out = build_char_cnn_lstm_graph(embed_matrix, word_length, num_chars)
     td_fc_out = TimeDistributed(Dense(num_classes + 1, activation='softmax'), name='tdfc')(bilstm_out)
     cnn_lstm_model = Model(inputs, td_fc_out)
     cnn_lstm_model.compile(optimizer='nadam', loss='sparse_categorical_crossentropy')
@@ -67,7 +67,7 @@ def build_model_char_cnn_lstm(num_classes, embed_matrix, word_length, num_chars)
 
 
 def build_model_char_cnn_lstm_crf(num_classes, embed_matrix, word_length, num_chars):
-    inputs, bilstm_out = build_char_cnn_lstm_graph(num_classes, embed_matrix, word_length, num_chars)
+    inputs, bilstm_out = build_char_cnn_lstm_graph(embed_matrix, word_length, num_chars)
     td_fc_out = TimeDistributed(Dense(50,), name='tdfc')(bilstm_out)
     relu_out = Activation('relu', name='activation')(td_fc_out)
     crf_out = CRF(num_classes + 1, name='crf')(relu_out)
@@ -84,10 +84,10 @@ def make_ner_inputs(sentences: List[List[str]],
     char_to_index = {ch: i + 1 for i, ch in enumerate(characters)}
     inputs = []
     for sentence in sentences:
-        word_indexes = [word_to_index[word] for word in sentence]
+        word_indices = [word_to_index[word] for word in sentence]
         word_casings = [get_casing(word) for word in sentence]
         char_encodings = [encode_word(word, char_to_index, char_cnn_vector_size) for word in sentence]
-        inputs.append([word_indexes, word_casings, char_encodings])
+        inputs.append([word_indices, word_casings, char_encodings])
     padding_values = [0, CASING_PADDING, [0] * char_cnn_vector_size]
     return inputs, padding_values
 
@@ -97,12 +97,12 @@ def to_one_hot(indices: Any, num_classes: int) -> np.ndarray:
 
 
 def make_ner_outputs(sentences_labels: List[List[str]],
-                     label_to_index: Dict[str, int]) -> Tuple[List[List[List[int]]], List[Any]]:
-    return [[[[label_to_index[label]] for label in sentence]] for sentence in sentences_labels], [0]
+                     label_to_index: Dict[str, int]) -> Tuple[List[List[List[List[int]]]], List[Any]]:
+    return [[[[label_to_index[label]] for label in sentence]] for sentence in sentences_labels], [[0]]
 
 
 def make_ner_one_hot_outputs(sentences_labels: List[List[str]],
-                             label_to_index: Dict[str, int]) -> Tuple[List[List[List[int]]], List[Any]]:
+                             label_to_index: Dict[str, int]) -> Tuple[List[List[List[List[int]]]], List[Any]]:
     num_classes = len(label_to_index)
     one_hot_matrix = [[0] * i + [1] + [0] * (num_classes - i - 1) for i in range(num_classes)]
     return [[[one_hot_matrix[label_to_index[label]] for label in sentence]] for sentence in sentences_labels], \

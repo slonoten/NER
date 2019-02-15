@@ -7,4 +7,4 @@ data/
 !tests/data/*.txt
 embeddings/
 .idea/
-
+logs/

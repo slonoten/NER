@@ -77,7 +77,7 @@ def main():
                                   verbose=1, save_best_only=True, monitor='valid_f1')
 
     time_stamp = datetime.now().strftime("%d-%m-%Y_%H-%M-%S")
-    csv_logger = CSVLogger(f"NER_log_{time_stamp}.csv", append=False)
+    csv_logger = CSVLogger(f"./logs/NER_log_{time_stamp}.csv", append=False)
 
     # model.load_weights('./checkpoints/char_cnn_bilstm_crf17.hdf5')
 
