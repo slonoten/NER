@@ -2,7 +2,7 @@
 
 import numpy as np
 
-from typing import List, Dict, Any, Union, Mapping, Iterable, Tuple
+from typing import List, Any, Tuple
 from operator import itemgetter
 from random import sample
 from itertools import groupby, accumulate
@@ -26,7 +26,7 @@ class DataGenerator(Sequence):
                  batch_size: int = 32):
         self.inputs, self.input_pad_values = input_data
         self.num_inputs = len(self.inputs[0])
-        lengths = ((i, len(input[0])) for i, input in enumerate(self.inputs))
+        lengths = ((i, len(inp[0])) for i, inp in enumerate(self.inputs))
         self.sorted_lengths = sorted(lengths, key=itemgetter(1))
         self.predict = not output_data
         if self.predict:
@@ -57,8 +57,11 @@ class DataGenerator(Sequence):
         batch_outputs = [[] for _ in range(self.num_outputs)]
         for i in indices:
             for j in range(self.num_outputs):
-                batch_outputs[j].append(
-                    pad_sequence_left(self.outputs[i][j], pad_to_len, self.outputs_pad_values[j]))
+                if self.outputs_pad_values:
+                    output = pad_sequence_left(self.outputs[i][j], pad_to_len, self.outputs_pad_values[j])
+                else:
+                    output = self.outputs[i][j]
+                batch_outputs[j].append(output)
         output_tensors = [np.array(bo) for bo in batch_outputs]
         return input_tensors, output_tensors
 

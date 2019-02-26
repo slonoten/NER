@@ -8,7 +8,7 @@ from conll import load_conll
 from embeddings import Embeddings
 from model import predict
 from data_generator import DataGenerator
-from validation import compute_f1
+from sklearn.metrics import f1_score
 from rel_ext_model import make_rel_ext_inputs, build_rel_ext_model
 from ner_model import make_ner_outputs
 from labels import transform_indices_to_labels, build_labels_mapping, build_indices_mapping
@@ -19,7 +19,7 @@ from keras.callbacks import Callback, ModelCheckpoint, CSVLogger
 class ModelEval(Callback):
     def __init__(self,
                  generator: DataGenerator,
-                 valid_labels: Iterable[List[str]],
+                 valid_labels: Iterable[str],
                  index_to_label: Dict[int, str]):
         super(ModelEval, self).__init__()
         self.valid_labels = list(valid_labels)
@@ -28,10 +28,10 @@ class ModelEval(Callback):
 
     def on_epoch_end(self, epoch, logs=None):
         logs = logs or {}
-        pred = transform_indices_to_labels(self.index_to_label, predict(self.model, self.generator))
-        f1 = compute_f1(pred, self.valid_labels)
-        logs['valid_f1'] = f1[0]
-        print(f'Precision: {f1[0]}, Recall: {f1[1]}, F1: {f1[2]}')
+        pred = [self.index_to_label[i] for i in predict(self.model, self.generator)]
+        f1 = f1_score(pred, self.valid_labels, labels=self.index_to_label.values())
+        logs['valid_f1'] = f1
+        print(f'F1: {f1}')
 
 
 def get_entity_positions(sentence: str) -> Tuple[Tuple[int, int], Tuple[int, int]]:
@@ -159,6 +159,10 @@ def main():
                                                                        'TEST_FILE_FULL.TXT'))
     test_branch1, test_branch2 = build_branches_indices(test_pair_positions, test_starts, test_link)
 
+    rel_classes = sorted(set(train_rel_labels + train_rel_labels))
+    rel_to_index = build_labels_mapping(rel_classes)
+    index_to_relation = build_indices_mapping(rel_classes)
+
     pos_classes = sorted({l for sent_pos in train_pos + test_pos for l in sent_pos})
     pos_to_index = build_labels_mapping(pos_classes)
 
@@ -177,23 +181,23 @@ def main():
     embed_matrix = embed.matrix
 
     train_inputs = make_rel_ext_inputs(train_words, embed, train_pos, pos_to_index, 
-                                       train_ent_labels, label_to_index,
+                                       #train_ent_labels, label_to_index,
                                        train_dep, dep_to_index,
                                        train_branch1, train_branch2)
-    train_outputs = make_ner_outputs(train_rel_labels)
+    train_outputs = [[[rel_to_index[l]]] for l in train_rel_labels]
 
     test_inputs = make_rel_ext_inputs(test_words, embed, test_pos, pos_to_index,
-                                      test_ent_labels, label_to_index,
+                                      #test_ent_labels, label_to_index,
                                       test_dep, dep_to_index,
                                       test_branch1, test_branch2)
 
     model = build_rel_ext_model(len(label_classes), embed_matrix, len(pos_classes))
 
-    train_generator = DataGenerator(train_inputs, train_outputs, 32)
+    train_generator = DataGenerator(train_inputs, (train_outputs, []), 32)
 
     evaluator = ModelEval(DataGenerator(test_inputs),
-                          test_ent_labels,
-                          index_to_label)
+                          test_rel_labels,
+                          index_to_relation)
 
     model_saver = ModelCheckpoint(filepath='./checkpoints/' + model.name.replace(' ', '_') + '_{epoch:02d}.hdf5',
                                   verbose=1, save_best_only=True, monitor='valid_f1')
@@ -203,13 +207,13 @@ def main():
 
     # model.load_weights('./checkpoints/char_cnn_bilstm_crf17.hdf5')
 
-    model.fit_generator(train_generator, epochs=1, callbacks=[evaluator, model_saver, csv_logger])
+    #model.fit_generator(train_generator, epochs=1, callbacks=[evaluator, model_saver, csv_logger])
 
     test_pred_indices = predict(model, DataGenerator(test_inputs))
 
-    test_pred_labels = transform_indices_to_labels(index_to_label, test_pred_indices)
+    #test_pred_labels = transform_indices_to_labels(index_to_label, test_pred_indices)
 
-    print(compute_f1(test_pred_labels, test_ent_labels))
+    #print(compute_f1(test_pred_labels, test_ent_labels))
 
     #with open('ner_results.txt', 'wt') as file:
     #    for sent, sent_true_labels, sent_pred_labels in zip(test_data, test_labels, test_pred_labels):
