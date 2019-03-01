@@ -15,13 +15,11 @@ def predict(model: Model,
         indices_and_lengths = data_generator.get_indices_and_lengths(i)
         softmax_prediction = model.predict(model_input)
         # Some models return more then one output. We assume that we use first output as prediction.
-        print(softmax_prediction)
         if isinstance(softmax_prediction, list):
             softmax_prediction = softmax_prediction[0]
         class_prediction = softmax_prediction.argmax(axis=-1)
-        print(class_prediction)
         for sent_pred, (idx, length) in zip(class_prediction, indices_and_lengths):
-            sent_labels = sent_pred[-length:]
+            sent_labels = sent_pred[-length:] if sent_pred.shape else sent_pred
             prediction[idx] = sent_labels
     return prediction
 

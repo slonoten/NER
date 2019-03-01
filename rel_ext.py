@@ -1,4 +1,4 @@
-"""Обучаем и тестируем NER"""
+"""Model inspired by Miwa and Bansal https://arxiv.org/abs/1601.00770"""
 
 import os
 from typing import Iterable, List, Tuple, Dict
@@ -29,7 +29,7 @@ class ModelEval(Callback):
     def on_epoch_end(self, epoch, logs=None):
         logs = logs or {}
         pred = [self.index_to_label[i] for i in predict(self.model, self.generator)]
-        f1 = f1_score(pred, self.valid_labels, labels=self.index_to_label.values())
+        f1 = f1_score(pred, self.valid_labels, labels=list(self.index_to_label.values()), average='micro')
         logs['valid_f1'] = f1
         print(f'F1: {f1}')
 
@@ -160,8 +160,8 @@ def main():
     test_branch1, test_branch2 = build_branches_indices(test_pair_positions, test_starts, test_link)
 
     rel_classes = sorted(set(train_rel_labels + train_rel_labels))
-    rel_to_index = build_labels_mapping(rel_classes)
-    index_to_relation = build_indices_mapping(rel_classes)
+    rel_to_index = {l: i for i, l in enumerate(rel_classes)}
+    index_to_relation = {i: l for i, l in enumerate(rel_classes)}
 
     pos_classes = sorted({l for sent_pos in train_pos + test_pos for l in sent_pos})
     pos_to_index = build_labels_mapping(pos_classes)
@@ -181,17 +181,18 @@ def main():
     embed_matrix = embed.matrix
 
     train_inputs = make_rel_ext_inputs(train_words, embed, train_pos, pos_to_index, 
-                                       #train_ent_labels, label_to_index,
+                                       train_ent_labels, label_to_index,
                                        train_dep, dep_to_index,
                                        train_branch1, train_branch2)
-    train_outputs = [[[rel_to_index[l]]] for l in train_rel_labels]
+    train_outputs = [[rel_to_index[l]] for l in train_rel_labels]
 
     test_inputs = make_rel_ext_inputs(test_words, embed, test_pos, pos_to_index,
-                                      #test_ent_labels, label_to_index,
+                                      test_ent_labels, label_to_index,
                                       test_dep, dep_to_index,
                                       test_branch1, test_branch2)
 
-    model = build_rel_ext_model(len(label_classes), embed_matrix, len(pos_classes))
+    model = build_rel_ext_model(len(rel_classes), embed_matrix, len(label_classes),
+                                len(dep_classes), len(pos_classes))
 
     train_generator = DataGenerator(train_inputs, (train_outputs, []), 32)
 
@@ -200,14 +201,14 @@ def main():
                           index_to_relation)
 
     model_saver = ModelCheckpoint(filepath='./checkpoints/' + model.name.replace(' ', '_') + '_{epoch:02d}.hdf5',
-                                  verbose=1, save_best_only=True, monitor='valid_f1')
+                                  verbose=1, save_best_only=True, monitor='valid_f1', mode='max')
 
     time_stamp = datetime.now().strftime("%d-%m-%Y_%H-%M-%S")
     csv_logger = CSVLogger(f"./logs/RE_log_{time_stamp}.csv", append=False)
 
-    # model.load_weights('./checkpoints/char_cnn_bilstm_crf17.hdf5')
+    #model.load_weights('./checkpoints/relation_classifier_20.hdf5')
 
-    #model.fit_generator(train_generator, epochs=1, callbacks=[evaluator, model_saver, csv_logger])
+    model.fit_generator(train_generator, epochs=20, callbacks=[evaluator, model_saver, csv_logger])
 
     test_pred_indices = predict(model, DataGenerator(test_inputs))
 
